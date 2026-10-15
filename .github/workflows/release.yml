@@ -93,6 +93,6 @@ jobs:
           test -f "release-assets/Codex-Claude-Bridge-$VERSION-Windows-x64-Portable.zip"
           (cd release-assets && cat *.sha256 > SHA256SUMS && sha256sum -c SHA256SUMS)
           # No clobber: re-running a version must not replace an existing public asset.
-          gh release create "v$VERSION" release-assets/*.dmg release-assets/*.exe release-assets/*.zip release-assets/SHA256SUMS release-assets/validation-*.json \
+          gh release create "v$VERSION" release-assets/*.dmg release-assets/*.exe release-assets/*.zip release-assets/*.png release-assets/SHA256SUMS release-assets/validation-*.json \
             --target "$GITHUB_SHA" --prerelease --title "v$VERSION — macOS + Windows installers (preview)" \
             --notes-file "docs/RELEASE-v$VERSION.md"

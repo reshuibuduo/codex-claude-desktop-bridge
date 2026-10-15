@@ -157,6 +157,13 @@ sealed class BridgeForm : Form {
     static Button Button(string text, EventHandler click) { var b = new Button { Text = text, AutoSize = true, Height = 32 }; b.Click += click; return b; }
     void CheckUI() {
         if (!Visible || !tray.Visible || tray.ContextMenuStrip.Items.Count < 4) throw new Exception("UI smoke failed");
+        string capture = Environment.GetEnvironmentVariable("CODEX_CLAUDE_BRIDGE_UI_CAPTURE");
+        if (!String.IsNullOrEmpty(capture)) {
+            using (var bitmap = new Bitmap(Width, Height)) {
+                DrawToBitmap(bitmap, new Rectangle(0, 0, Width, Height));
+                bitmap.Save(capture, System.Drawing.Imaging.ImageFormat.Png);
+            }
+        }
         Console.WriteLine("UI_STARTUP_OK window=visible tray=ready");
     }
     void RefreshStatus() {

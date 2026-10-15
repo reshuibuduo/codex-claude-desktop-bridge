@@ -61,7 +61,7 @@ def main():
         data = root/'isolated data'; data.mkdir(); sentinel = data/'keep.txt'; sentinel.write_text('keep user data')
         env = dict(os.environ,PATH=str(root/'no-python-or-compiler'),HOME=str(home),USERPROFILE=str(home),
                    LOCALAPPDATA=str(home/'AppData/Local'),TEMP=str(temp),TMP=str(temp),
-                   CODEX_CLAUDE_BRIDGE_DATA=str(data),PYTHONHOME=str(root/'nonexistent-python'),PYTHONPATH=str(root/'nonexistent-modules'))
+                   CODEX_CLAUDE_BRIDGE_DATA=str(data),CODEX_CLAUDE_BRIDGE_UI_CAPTURE=str(output/'windows-preview.png'),PYTHONHOME=str(root/'nonexistent-python'),PYTHONPATH=str(root/'nonexistent-modules'))
         relocated = root/'解压 folder with spaces'; relocated.mkdir()
         with zipfile.ZipFile(portable) as archive:
             assert archive.testzip() is None; archive.extractall(relocated)
@@ -83,8 +83,23 @@ def main():
         assert sentinel.read_text() == 'keep user data'
         assert json.loads(config.read_text(encoding='utf-8'))['enabled'] is False
         result['checks']['installer_uninstall'] = 'app removed; fixture binding paused; user data retained'
+        # Inno's self-deleting cleanup child can briefly outlive the main uninstaller.
+        # Wait for its real file handles to close instead of suppressing cleanup errors.
+        deadline = time.monotonic()+30
+        while True:
+            try:
+                shutil.rmtree(temp)
+                break
+            except FileNotFoundError:
+                break
+            except PermissionError:
+                if time.monotonic() >= deadline: raise
+                time.sleep(0.2)
+        result['checks']['uninstaller_cleanup'] = 'temporary executable handles released'
+        assert (output/'windows-preview.png').is_file()
+
     result['assets'] = []
-    for path in [installer,portable]:
+    for path in [installer,portable,output/'windows-preview.png']:
         sha = hashlib.sha256(path.read_bytes()).hexdigest()
         result['assets'].append({'name':path.name,'bytes':path.stat().st_size,'sha256':sha})
         (output/(path.name+'.sha256')).write_text(sha+'  '+path.name+'\n',encoding='utf-8')
