@@ -46,3 +46,7 @@ jobs:
           python scripts/check_public_tree.py
           if ($LASTEXITCODE -ne 0) { $failed = $true }
           if ($failed) { exit 1 }
+      - name: Build and smoke-test native Windows distribution
+        env:
+          PYTHONUTF8: '1'
+        run: python scripts/package_windows.py

@@ -54,7 +54,7 @@ def _security_api():
     return c, w, a, k
 
 
-def _private_sddl():
+def _private_sddl(directory=False):
     c, w, a, k = _security_api(); token = w.HANDLE()
     if not a.OpenProcessToken(k.GetCurrentProcess(), 8, c.byref(token)): raise c.WinError(c.get_last_error())
     sid = w.LPWSTR()
@@ -64,7 +64,8 @@ def _private_sddl():
         buffer = c.create_string_buffer(size.value)
         if not a.GetTokenInformation(token, 1, buffer, size, c.byref(size)): raise c.WinError(c.get_last_error())
         if not a.ConvertSidToStringSidW(c.c_void_p.from_buffer(buffer), c.byref(sid)): raise c.WinError(c.get_last_error())
-        return 'D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;'+sid.value+')'
+        flags = 'OICI' if directory else ''
+        return 'D:P'+''.join('(A;'+flags+';FA;;;'+value+')' for value in ['SY','BA',sid.value])
     finally:
         if sid: k.LocalFree(sid)
         k.CloseHandle(token)
@@ -74,7 +75,7 @@ def restrict_windows_path(path):
     """Protect newly written state/context; never apply this to the project directory."""
     if os.name != 'nt': return
     c, w, a, k = _security_api(); descriptor = c.c_void_p()
-    if not a.ConvertStringSecurityDescriptorToSecurityDescriptorW(_private_sddl(), 1, c.byref(descriptor), None):
+    if not a.ConvertStringSecurityDescriptorToSecurityDescriptorW(_private_sddl(Path(path).is_dir()), 1, c.byref(descriptor), None):
         raise c.WinError(c.get_last_error())
     try:
         present, defaulted, acl = w.BOOL(), w.BOOL(), c.c_void_p()
@@ -96,7 +97,7 @@ def windows_path_is_private(path):
         import re
         actual = text.value
         expected_sd = c.c_void_p(); expected_text = w.LPWSTR()
-        if not a.ConvertStringSecurityDescriptorToSecurityDescriptorW(_private_sddl(), 1, c.byref(expected_sd), None):
+        if not a.ConvertStringSecurityDescriptorToSecurityDescriptorW(_private_sddl(Path(path).is_dir()), 1, c.byref(expected_sd), None):
             raise c.WinError(c.get_last_error())
         try:
             if not a.ConvertSecurityDescriptorToStringSecurityDescriptorW(expected_sd, 1, 4, c.byref(expected_text), None):

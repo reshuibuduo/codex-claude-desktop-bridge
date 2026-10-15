@@ -63,6 +63,14 @@ def frame(value):
 
 
 class PipeContractTests(unittest.TestCase):
+    def test_recv_reads_buffer_after_io_completion(self):
+        pipe = WindowsPipe.__new__(WindowsPipe)
+        def complete(buffer, size, writing):
+            buffer.value = b'ok'
+            return 2
+        pipe._io = complete
+        self.assertEqual(pipe.recv(8), b'ok')
+
     def test_endpoint_is_local_named_pipe(self):
         self.assertEqual(DEFAULT_PIPE, '\\\\.\\pipe\\codex-ipc')
         for path in ['\\\\remote\\pipe\\codex-ipc', '/tmp/sock']:

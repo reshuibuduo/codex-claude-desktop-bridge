@@ -157,7 +157,8 @@ class WindowsPipe:
 
     def recv(self, size):
         buffer = C.create_string_buffer(size)
-        return buffer.raw[:self._io(buffer, size, False)]
+        count = self._io(buffer, size, False)
+        return buffer.raw[:count]
 
     def sendall(self, value):
         deadline = time.monotonic() + self.timeout
