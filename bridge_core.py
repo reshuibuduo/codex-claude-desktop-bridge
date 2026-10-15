@@ -141,7 +141,7 @@ def make_prompt(context, thread_id, turn_id):
 
 def write_private(path, text):
     fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
         restrict_windows_path(path)
         handle.write(text)
 

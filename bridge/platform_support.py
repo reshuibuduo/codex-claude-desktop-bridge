@@ -95,8 +95,22 @@ def windows_path_is_private(path):
             raise c.WinError(c.get_last_error())
         import re
         actual = text.value
-        expected_sids = set(re.findall(r';;;([^;)]+)', _private_sddl()))
-        return actual.startswith('D:P') and set(re.findall(r';;;([^;)]+)', actual)) == expected_sids
+        expected_sd = c.c_void_p(); expected_text = w.LPWSTR()
+        if not a.ConvertStringSecurityDescriptorToSecurityDescriptorW(_private_sddl(), 1, c.byref(expected_sd), None):
+            raise c.WinError(c.get_last_error())
+        try:
+            if not a.ConvertSecurityDescriptorToStringSecurityDescriptorW(expected_sd, 1, 4, c.byref(expected_text), None):
+                raise c.WinError(c.get_last_error())
+            # Windows canonicalizes well-known local account SIDs (for example RID 500 -> LA).
+            # Compare canonical ACEs, including access masks, rather than raw SID spellings.
+            expected = expected_text.value
+            valid = actual.startswith('D:P') and sorted(re.findall(r'\([^)]*\)', actual)) == sorted(re.findall(r'\([^)]*\)', expected))
+            if not valid:
+                raise AssertionError('private DACL mismatch: actual='+actual+' expected='+expected)
+            return True
+        finally:
+            if expected_text: k.LocalFree(expected_text)
+            k.LocalFree(expected_sd)
     finally:
         if text: k.LocalFree(text)
         k.LocalFree(descriptor)
