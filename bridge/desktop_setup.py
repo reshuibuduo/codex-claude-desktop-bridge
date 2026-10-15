@@ -15,7 +15,7 @@ from desktop_ipc import DesktopIPC
 from live_service import atomic_json, validate_config
 
 SERVER_NAME='codex-desktop-bridge'
-PROMPT='''这是 Codex → Claude 桌面自动接续待命会话。请调用 codex-desktop-bridge 的 await_codex_failure(timeout_seconds=900)。只有返回 HANDOFF_READY 才接续 context.goal；先核对磁盘现状和项目指引，保留现有修改，避免重复外部操作。完成后调用 report_completion(handoff_id, summary, tests_result)，如实记录实际测试，然后继续等候下一次故障。WAIT_TIMEOUT 只继续等待；DISABLED、PAUSED、ERROR、REVIEW_PREVIOUS_HANDOFF 或 COMPLETION_CONFLICT 停止并报告。不要将计划当作完成。使用中文。'''
+PROMPT='''这是 Codex → Claude 桌面自动接续待命会话。请调用 codex-desktop-bridge 的 await_codex_failure(timeout_seconds=900)。只有返回 HANDOFF_READY 才立即自动接续 context.goal，无需用户再次发送接续请求；先核对磁盘现状和项目指引，保留现有修改，避免重复外部操作。完成后调用 report_completion(handoff_id, summary, tests_result)，如实记录实际测试，然后继续等候下一次故障。WAIT_TIMEOUT 只继续等待；DISABLED、PAUSED、ERROR、REVIEW_PREVIOUS_HANDOFF 或 COMPLETION_CONFLICT 停止并报告。不要将计划当作完成。使用中文。'''
 
 def read(path): return json.loads(Path(path).read_text(encoding='utf-8'))
 def write_config(path,value):

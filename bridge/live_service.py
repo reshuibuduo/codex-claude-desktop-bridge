@@ -5,7 +5,7 @@ permissions. This module does not create chats or inject source failures.
 """
 import argparse
 import contextlib
-from platform_support import lock_exclusive
+from platform_support import lock_exclusive, restrict_windows_path
 import hashlib
 import json
 import os
@@ -28,6 +28,7 @@ def atomic_json(path, value):
     fd, name = tempfile.mkstemp(prefix='.' + path.name, dir=str(path.parent))
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            restrict_windows_path(name)
             json.dump(value, stream, ensure_ascii=False, indent=2)
             stream.write('\n')
         os.replace(name, path)

@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'bridge'))
-from platform_support import data_directory, lock_exclusive
+from platform_support import data_directory, lock_exclusive, windows_path_is_private
 from live_service import atomic_json
 import desktop_setup as setup
 
@@ -45,6 +45,13 @@ with open(sys.argv[2], 'a') as f:
                 lock_exclusive(f)
                 r = attempt(); self.assertEqual((r.returncode, r.stdout.strip()), (3, 'LOCK_BUSY'), r.stderr)
             r = attempt(); self.assertEqual((r.returncode, r.stdout.strip()), (0, 'LOCK_ACQUIRED'), r.stderr)
+
+    @unittest.skipUnless(os.name == 'nt', 'native Windows DACL readback')
+    def test_state_json_has_private_dacl(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'state.json'
+            atomic_json(path, {'text': 'fixture'})
+            self.assertTrue(windows_path_is_private(path))
 
     def test_unicode_config_and_project(self):
         with tempfile.TemporaryDirectory() as folder:

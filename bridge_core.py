@@ -8,6 +8,7 @@ authenticated Claude Desktop Code session; --watch is a separate legacy CLI rout
 import argparse
 import concurrent.futures
 import copy
+import contextlib
 import hashlib
 import json
 import math
@@ -18,6 +19,8 @@ import sys
 import tempfile
 import time
 import uuid
+
+from bridge.platform_support import restrict_windows_path, windows_path_is_private
 
 AUTO_HANDOFF_ENABLED = True
 SNAPSHOT_MAX_AGE_SECONDS = 5
@@ -139,6 +142,7 @@ def make_prompt(context, thread_id, turn_id):
 def write_private(path, text):
     fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        restrict_windows_path(path)
         handle.write(text)
 
 
@@ -150,7 +154,7 @@ class HandoffCore:
         self.allowed_errors = tuple(allowed_errors)
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        with self.connect() as db:
+        with contextlib.closing(self.connect()) as db, db:
             db.execute("CREATE TABLE IF NOT EXISTS handoffs ("
                        "thread_id TEXT, turn_id TEXT, workspace TEXT, session_id TEXT, "
                        "state TEXT, PRIMARY KEY(thread_id, turn_id))")
@@ -158,7 +162,13 @@ class HandoffCore:
                        "workspace TEXT PRIMARY KEY, session_id TEXT)")
 
     def connect(self):
-        return sqlite3.connect(str(self.state_path), timeout=10)
+        db = sqlite3.connect(str(self.state_path), timeout=10)
+        try:
+            restrict_windows_path(self.state_path)
+        except BaseException:
+            db.close()
+            raise
+        return db
 
     def prepare(self, event, snapshot, context, now=None):
         action = evaluate(event, snapshot, now, self.enabled, self.allowed_errors)
@@ -168,7 +178,7 @@ class HandoffCore:
         thread_id = event["params"]["threadId"]
         turn_id = event["params"]["turn"]["id"]
         session_id = str(uuid.uuid4())
-        with self.connect() as db:
+        with contextlib.closing(self.connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
             old = db.execute("SELECT session_id, state FROM handoffs "
                              "WHERE thread_id=? AND turn_id=?", (thread_id, turn_id)).fetchone()
@@ -197,11 +207,11 @@ class HandoffCore:
                                  "apply_explicit_project_tool_rules"],
             }
             write_private(package / "launch.json", json.dumps(launch, ensure_ascii=False, indent=2)+"\n")
-            with self.connect() as db:
+            with contextlib.closing(self.connect()) as db, db:
                 db.execute("UPDATE handoffs SET state='prepared' WHERE session_id=?", (session_id,))
         except Exception:
             # Keep the reservation on an uncertain write; never auto-resubmit.
-            with self.connect() as db:
+            with contextlib.closing(self.connect()) as db, db:
                 db.execute("UPDATE handoffs SET state='preparation_failed' WHERE session_id=?", (session_id,))
             raise
         return {"action": "PREPARED", "package": str(package), "session_id": session_id,
@@ -304,7 +314,9 @@ def self_test():
         check(str(uuid.UUID(launch["session_id"])) == result["session_id"], "session mapping")
         check(launch["prompt_sha256"] == hashlib.sha256(prompt.encode()).hexdigest(), "prompt hash")
         check(launch["status"] == "prepared_not_executed" and result["external_runs"] == 0, "no external execution")
-        check((package / "handoff.txt").stat().st_mode & 0o777 == 0o600, "private file mode")
+        private = (windows_path_is_private(package / "handoff.txt") if os.name == "nt" else
+                   (package / "handoff.txt").stat().st_mode & 0o777 == 0o600)
+        check(private, "private file ACL or mode")
         restarted = HandoffCore(root / "state.sqlite", root / "packages", enabled=True)
         duplicate = restarted.prepare(event, snapshot, context, 1000)
         check(duplicate["action"] == "DUPLICATE" and duplicate["session_id"] == result["session_id"], "restart dedup")
