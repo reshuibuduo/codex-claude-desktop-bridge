@@ -1,0 +1,7 @@
+{
+  "enabled": false,
+  "thread_id": "REPLACE_WITH_CODEX_THREAD_UUID",
+  "cwd": "/absolute/project",
+  "state_dir": "/absolute/output/BridgeData/runtime",
+  "target": "claude-desktop-code"
+}
