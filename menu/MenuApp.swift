@@ -13,6 +13,19 @@ func stateText(enabled: Bool, phase: String, stamp: Double, now: Double) -> Stri
     default: return "已启用 · 等待 Claude 建立待命连接"
     }
 }
+func bundledPythonURL() -> URL {
+    Bundle.main.resourceURL!.appendingPathComponent("python/bin/python3")
+}
+
+// Exercise the exact bundled helper path without touching a user's binding.
+if CommandLine.arguments.contains("--bundle-self-test") {
+    let process = Process()
+    process.executableURL = bundledPythonURL()
+    process.arguments = ["-E", "-s", "-B", Bundle.main.resourceURL!.appendingPathComponent("runtime/bridge/bundle_smoke.py").path]
+    do { try process.run(); process.waitUntilExit(); exit(process.terminationStatus) }
+    catch { fputs("BUNDLE_RUNTIME_ERROR: \(error.localizedDescription)\n", stderr); exit(1) }
+}
+
 func readObject(_ url: URL) -> [String: Any] {
     guard let data = try? Data(contentsOf: url), let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
     return obj
@@ -72,6 +85,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refresh()
         timer=Timer.scheduledTimer(withTimeInterval:2,repeats:true) { [weak self] _ in self?.refresh() }
         showPanel()
+        if CommandLine.arguments.contains("--ui-smoke-test") {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) {
+                guard self.window.isVisible, self.item.menu != nil else { exit(1) }
+                print("UI_STARTUP_OK window=visible menu=ready")
+                NSApp.terminate(nil)
+            }
+        }
     }
     func label(_ text:String, size:CGFloat=13, color:NSColor = .labelColor) -> NSTextField {
         let l=NSTextField(wrappingLabelWithString:text);l.font=NSFont.systemFont(ofSize:size);l.textColor=color;return l
@@ -117,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let script=runtime.appendingPathComponent("bridge/desktop_setup.py").path
         let config=configURL.path
         DispatchQueue.global(qos:.userInitiated).async {
-            let process=Process();process.executableURL=URL(fileURLWithPath:"/usr/bin/python3");process.arguments=[script,"--config",config]+args
+            let process=Process();process.executableURL=bundledPythonURL();process.arguments=["-E","-s","-B",script,"--config",config]+args
             let pipe=Pipe();process.standardOutput=pipe;process.standardError=pipe
             var text="";var success=false
             do {try process.run();let data=pipe.fileHandleForReading.readDataToEndOfFile();process.waitUntilExit();text=String(data:data,encoding:.utf8) ?? "";success=process.terminationStatus==0}

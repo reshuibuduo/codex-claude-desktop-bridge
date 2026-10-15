@@ -54,13 +54,14 @@ def install_mcp(cwd, config_path, script, audit_dir, thread_id, previous_server=
     if not isinstance(value,dict) or not isinstance(value.get('mcpServers',{}),dict):
         raise ValueError('unexpected project MCP configuration')
     servers=value.setdefault('mcpServers',{})
-    entry={'type':'stdio','command':'/usr/bin/python3','args':[str(script),'--config',str(config_path),
+    entry={'type':'stdio','command':str(Path(sys.executable).resolve()),'args':['-E','-s','-B',str(script),'--config',str(config_path),
            '--expected-cwd',str(cwd),'--expected-thread',thread_id], 'timeout':1000000}
     prior=servers.get(SERVER_NAME)
     if prior is not None:
         old_args=prior.get('args',[]) if isinstance(prior,dict) else []
         owned_paths=[str(script)] + ([str(Path(previous_server).resolve())] if previous_server else [])
-        if not old_args or old_args[0] not in owned_paths:
+        old_script = old_args[3] if old_args[:3] == ['-E','-s','-B'] and len(old_args)>3 else (old_args[0] if old_args else None)
+        if old_script not in owned_paths:
             raise ValueError('existing connector name belongs to another installation')
     audit_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
     stamp=str(time.time_ns());backup=audit_dir/('mcp-before-'+stamp+'.json')

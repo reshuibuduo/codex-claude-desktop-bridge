@@ -30,14 +30,23 @@ Native menu bar: waiting / handed off / reported complete / paused
 - No global Codex/Claude settings or installed vendor app binaries are patched.
 - Source is Python standard library + native AppKit/Swift. No npm dependency or background launch agent.
 
+## Download and install / 下载安装
+
+**[Download v0.3.0 macOS installers](https://github.com/reshuibuduo/codex-claude-desktop-bridge/releases/tag/v0.3.0)** — choose `arm64.dmg` for Apple Silicon (M-series), or `x86_64.dmg` for Intel. Open the DMG, drag the app to Applications, eject the image, then launch the installed app. **Python is embedded: no compiler, Homebrew or separate Python installation is needed.**
+
+**未公证预览版 / Not notarized:** the downloads are ad-hoc signed, not Apple Developer ID signed or notarized. Gatekeeper may block first launch. After checking the source and checksum, follow [Apple's per-app confirmation instructions](https://support.apple.com/en-us/102445) if you trust the download; managed Macs may not permit it. Do not disable Gatekeeper globally. See [installation notes](docs/INSTALL.txt).
+
+Release CI verifies both native architectures on macOS 15 with an isolated HOME, no Python/compiler on PATH, and an app copied out of the DMG to a different path. The deployment target is macOS 13; this is not a claim that every OS/vendor-app combination has been tested.
+
 ## Requirements
 
-- macOS 13+, Python 3.9+ available through `/usr/bin/python3`, and Xcode Command Line Tools to build.
+- macOS 13+ (or newer if required by your Codex/Claude desktop version). The release app includes Python 3.12.15.
+- **Source builds only:** Python 3.9+, Xcode Command Line Tools and network access to download the hash-pinned runtime.
 - Running Codex Desktop and an authenticated Claude Desktop **Code** session.
 - Initial live validation: Apple Silicon, Codex Desktop `26.1007.30912`, Claude Desktop `2.37337.1`, embedded Claude Code `2.1.295`.
 - Other desktop versions need adapter validation. The observed Codex stream version is `11`; unknown versions stop the adapter.
 
-## Build and use
+## Build from source (optional)
 
 ```sh
 git clone https://github.com/reshuibuduo/codex-claude-desktop-bridge.git
@@ -51,13 +60,15 @@ Open `dist/Codex Claude Bridge.app` in Finder. The build is locally ad-hoc signe
 SDKROOT=/path/to/compatible/MacOSX.sdk ./menu/build.sh
 ```
 
+## Connect after installation
+
 1. Enter **one local Codex conversation UUID** and its actual project directory; save the binding. The bridge confirms that the live Codex thread belongs to that directory.
 2. Click **打开 Claude 待命**. In Claude's **Environment** panel, explicitly confirm the real working directory, then send the prefilled prompt. A folder chip in the composer alone is not proof of the session's working directory.
 3. Use Claude's normal MCP permission flow. The menu must show **等待故障 · Claude 桌面已待命** before failover is armed.
 4. Keep that standby session open. When a new eligible terminal failure arrives, Claude receives the handoff and continues automatically.
 5. **暂停** stops new handoffs, not a Claude task already executing. Normal menu exit also pauses the binding.
 
-The app stores its local config and runtime state in `~/Library/Application Support/CodexClaudeBridge/`. `CODEX_CLAUDE_BRIDGE_DATA` can override this directory for local testing. Project `.mcp.json` edits preserve other connectors and have installation manifests/backups. Keep the built app at a stable path, or save the binding again after moving it.
+The app stores its local config and runtime state in `~/Library/Application Support/CodexClaudeBridge/`. `CODEX_CLAUDE_BRIDGE_DATA` can override this directory for local testing. Project `.mcp.json` edits preserve other connectors and have installation manifests/backups. Keep the app in Applications. After moving or upgrading it, pause/finish active work first, then save the binding again and reopen the Claude standby session. The MCP entry records the embedded interpreter path.
 
 For an existing, correctly bound Claude session, use [the reusable standby prompt](docs/STANDBY_PROMPT.txt).
 
@@ -121,7 +132,9 @@ bridge/desktop_mcp.py         Claude Desktop project MCP server
 bridge/desktop_setup.py       binding, pause, backup, reconciliation
 bridge/live_service.py        earlier CLI experiment + shared helpers (not the app's target)
 menu/MenuApp.swift            native status item and control panel
-menu/build.sh                local app build
+menu/build.sh                standalone app build with pinned embedded Python
+scripts/package_release.py   DMG creation and relocated-bundle smoke tests
+.github/workflows/release.yml native arm64/Intel build and preview publication
 scripts/check_public_tree.py publication hygiene check (not a universal secret scanner)
 tests/                       offline regression tests
 docs/                        standby prompt and validation boundaries
@@ -138,3 +151,7 @@ MIT — see [LICENSE](LICENSE). Independent community prototype; not affiliated 
 - [Claude Desktop shared configuration](https://code.claude.com/docs/en/desktop#shared-configuration)
 - [Claude MCP documentation](https://code.claude.com/docs/en/mcp)
 - [MCP cancellation semantics](https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/cancellation)
+
+## Release maintainers
+
+Run `python3 scripts/package_release.py` on a native Mac to build and verify a DMG. The manual **macOS Release** workflow builds and tests arm64 and Intel independently, then creates the version in `VERSION` as a preview release. Existing releases/assets are not overwritten. Runtime archive versions and SHA256 values are pinned in `menu/python-runtime.lock.json`; bundled third-party notices live under `licenses/python-runtime/` and inside the runtime. Apple Developer ID signing and notarization remain a separate publishing step; this workflow explicitly produces ad-hoc-signed previews.

@@ -294,7 +294,7 @@ def serve(config):
                 atomic_json(bridge.root/'mcp-client.json',{'clientInfo':params.get('clientInfo'),
                             'requestedProtocol':params.get('protocolVersion'),'server_pid':os.getpid()})
                 result={'protocolVersion':'2025-06-18','capabilities':{'tools':{}},
-                        'serverInfo':{'name':'codex-desktop-bridge','version':'0.2.0'},
+                        'serverInfo':{'name':'codex-desktop-bridge','version':'0.3.0'},
                         'instructions':'This bridge reads one configured Codex Desktop thread. Never treat WAITING or TIMEOUT as a handed-off task.'}
             elif method=='ping':result={}
             elif method=='tools/list':result={'tools':TOOLS}

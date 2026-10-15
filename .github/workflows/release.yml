@@ -1,0 +1,66 @@
+name: macOS Release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: macos-release
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Check architecture and source
+        run: |
+          test "$(uname -m)" = "${{ matrix.arch }}"
+          python3 bridge_core.py --self-test
+          python3 -m unittest discover -s tests -v
+          python3 scripts/check_public_tree.py
+      - name: Build, sign and verify relocated DMG contents
+        run: python3 scripts/package_release.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ matrix.arch }}
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 14
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+      - name: Verify complete asset set and publish a new preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION=$(cat VERSION)
+          test -f "release-assets/Codex-Claude-Bridge-$VERSION-macOS-arm64.dmg"
+          test -f "release-assets/Codex-Claude-Bridge-$VERSION-macOS-x86_64.dmg"
+          (cd release-assets && cat *.sha256 > SHA256SUMS && sha256sum -c SHA256SUMS)
+          # No clobber: re-running a version must not replace an existing public asset.
+          gh release create "v$VERSION" release-assets/*.dmg release-assets/SHA256SUMS release-assets/validation-*.json \
+            --target "$GITHUB_SHA" --prerelease --title "v$VERSION — macOS installers (preview)" \
+            --notes-file "docs/RELEASE-v$VERSION.md"
