@@ -22,3 +22,12 @@ The public repository intentionally contains only source and reproducible offlin
 - Other Codex/Claude Desktop versions, Intel Macs, remote/cloud tasks.
 
 The bridge's source snapshots describe the current turn. They are not a cross-application lock. Generic completion is agent-reported. An uncertain target execution requires explicit review rather than automatic retry.
+
+
+## v0.4.0 Windows preview
+
+Windows adds a native WinForms tray, per-user installer and portable archive with pinned embedded CPython. The desktop IPC adapter selects a local named pipe on Windows and the existing Unix socket on macOS. The Windows endpoint was observed in the shipped desktop bundle's cross-platform branch; this is static evidence, not proof that every Windows build exposes the same protocol.
+
+Release CI runs on Windows Server 2025 x64. It exercises real local Win32 named-pipe framing, timeout/cancellation, partial-frame preservation, disconnect and identity-rejection fixtures; cross-process file locks; UTF-8 project paths; MCP startup and restoration; relocated portable startup with no Python/compiler on PATH; and per-user installer/uninstaller behavior with retained user data. The four earlier POSIX standalone CLI process fixtures are skipped on Windows; the desktop MCP tests are not skipped. Legacy CLI execution is not a Windows feature.
+
+**Not established:** real Windows Codex Desktop owner discovery, real Claude Desktop Code folder/deep-link behavior, or an automatic live fault handoff on Windows 10/11. The first installation must establish a real standby connection before use. ARM64, WSL and remote conversations are not validated. Windows binaries have no Authenticode certificate; macOS packages remain ad-hoc signed and not notarized.

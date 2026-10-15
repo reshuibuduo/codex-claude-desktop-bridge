@@ -4,7 +4,7 @@ No standalone Claude process, credentials, GUI injection or synthetic failure no
 """
 import argparse
 import contextlib
-import fcntl
+from platform_support import lock_exclusive
 import json
 import os
 from pathlib import Path
@@ -16,6 +16,10 @@ import time
 import uuid
 
 sys.dont_write_bytecode = True
+if os.name == 'nt':
+    sys.stdin.reconfigure(encoding='utf-8')
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 from desktop_ipc import DesktopIPC, ProtocolError
 from live_service import atomic_json, build_context, validate_config, NewFailureGate, source_signature
 import bridge_core as core
@@ -24,7 +28,7 @@ import bridge_core as core
 class DesktopBridge:
     def __init__(self, config_path, ipc_factory=DesktopIPC):
         self.path = Path(config_path).resolve()
-        self.config = validate_config(json.loads(self.path.read_text()))
+        self.config = validate_config(json.loads(self.path.read_text(encoding='utf-8')))
         self.root = Path(self.config['state_dir'])
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         os.chmod(self.root, 0o700)
@@ -35,7 +39,7 @@ class DesktopBridge:
         self.guard = threading.Lock()
 
     def enabled(self):
-        current = json.loads(self.path.read_text())
+        current = json.loads(self.path.read_text(encoding='utf-8'))
         return (core.AUTO_HANDOFF_ENABLED and current.get('enabled') is True and
                 current.get('thread_id') == self.config['thread_id'] and
                 isinstance(current.get('cwd'), str) and
@@ -82,8 +86,8 @@ class DesktopBridge:
     def failure_gate(self, view):
         """Retain the armed boundary across MCP timeouts/restarts, not across explicit re-enable."""
         path = self.root/'armed-cursor.json'
-        generation = json.loads(self.path.read_text()).get('arm_generation')
-        saved = json.loads(path.read_text()) if path.exists() else {}
+        generation = json.loads(self.path.read_text(encoding='utf-8')).get('arm_generation')
+        saved = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
         gate = NewFailureGate(view)
         if saved.get('thread_id') == self.config['thread_id'] and saved.get('generation') == generation:
             gate.initial_turn = saved['initial_turn']
@@ -94,7 +98,7 @@ class DesktopBridge:
         return gate
 
     def remember_delivered(self, turn_id):
-        generation = json.loads(self.path.read_text()).get('arm_generation')
+        generation = json.loads(self.path.read_text(encoding='utf-8')).get('arm_generation')
         atomic_json(self.root/'armed-cursor.json', {'thread_id':self.config['thread_id'],
                     'generation':generation, 'initial_turn':turn_id, 'skip_initial':True})
 
@@ -109,7 +113,7 @@ class DesktopBridge:
         try:
             with (self.root/'desktop-wait.lock').open('a') as lock:
                 try:
-                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    lock_exclusive(lock)
                 except BlockingIOError:
                     return {'phase':'ALREADY_WAITING'}
                 if not self.enabled():
@@ -125,14 +129,14 @@ class DesktopBridge:
                     if str(Path(view.state['cwd']).resolve()) != self.config['cwd']:
                         raise ValueError('selected workspace mismatch')
                     gate = self.failure_gate(view)
-                    generation = json.loads(self.path.read_text()).get('arm_generation')
+                    generation = json.loads(self.path.read_text(encoding='utf-8')).get('arm_generation')
                     self.record('WAITING_FOR_NEW_FAILURE', owner=owner, initial_turn=gate.initial_turn,
                                 historical_terminal_skipped=gate.skip_initial)
                     deadline = time.monotonic()+timeout_seconds
                     heartbeat = time.monotonic()
                     last_decision = None
                     while time.monotonic() < deadline:
-                        if cancel.is_set() or not self.enabled() or json.loads(self.path.read_text()).get('arm_generation') != generation:
+                        if cancel.is_set() or not self.enabled() or json.loads(self.path.read_text(encoding='utf-8')).get('arm_generation') != generation:
                             return self.record('PAUSED')
                         if gate.candidate(view):
                             event,snapshot=view.normalized()
@@ -153,7 +157,7 @@ class DesktopBridge:
                                 acceptance = isinstance(self.config.get('acceptance_verification'), dict)
                                 if acceptance:
                                     context['constraints'].append('这是隔离验收；只修改 work/project/clamp.py，不改测试文件。')
-                                if cancel.is_set() or not self.enabled() or json.loads(self.path.read_text()).get('arm_generation') != generation:
+                                if cancel.is_set() or not self.enabled() or json.loads(self.path.read_text(encoding='utf-8')).get('arm_generation') != generation:
                                     return self.record('PAUSED')
                                 bound_core=core.HandoffCore(self.root/'state.sqlite',self.root/'handoffs',allowed_errors=allowed)
                                 result=bound_core.prepare(event,snapshot,context)
@@ -248,7 +252,7 @@ class DesktopBridge:
             if not row or source_signature(view)!=(row[0],'failed'):
                 return self.record('VERIFY_FAILED',reason='source_resumed_or_changed')
         finally:ipc.close()
-        result=subprocess.run([sys.executable,'-m','unittest','-v'],cwd=cwd,capture_output=True,text=True,timeout=30)
+        result=subprocess.run([sys.executable,'-m','unittest','-v'],cwd=cwd,capture_output=True,text=True,encoding='utf-8',timeout=30)
         report={'phase':'ACCEPTANCE_PASSED' if result.returncode==0 else 'VERIFY_FAILED',
                 'handoff_id':handoff_id,'command':[sys.executable,'-m','unittest','-v'],'cwd':str(cwd),
                 'stdout':result.stdout,'stderr':result.stderr,'exit_status':result.returncode,
@@ -359,7 +363,7 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--config',type=Path,required=True)
     parser.add_argument('--expected-cwd'); parser.add_argument('--expected-thread')
     args=parser.parse_args();os.umask(0o077)
-    config=json.loads(args.config.read_text())
+    config=json.loads(args.config.read_text(encoding='utf-8'))
     if args.expected_cwd and config.get('cwd') != args.expected_cwd:
         raise SystemExit('project binding changed; open a new configured standby session')
     if args.expected_cwd and str(Path.cwd().resolve()) != str(Path(args.expected_cwd).resolve()):

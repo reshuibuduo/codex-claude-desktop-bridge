@@ -1,0 +1,24 @@
+Codex Claude Bridge — Windows x64 preview
+
+解决的问题：Codex 任务在模型繁忙或符合条件的最终故障后中断，需要手动向另一位 coding agent 重新解释目标、进度与文件目录。本软件在你事先绑定并启用待命后，将可见任务上下文交给已登录的 Claude Desktop Code 继续处理。
+
+安装：Windows 10 22H2 / Windows 11 x64，安装已登录的 Codex 和 Claude 桌面应用。
+1. 下载 Windows-x64-Setup.exe，运行按用户安装；无需管理员、Python、编译器或单独 CLI 登录。
+2. 从开始菜单启动 Codex Claude Bridge，图标位于系统托盘（可能折叠在向上箭头里）。
+3. 输入一个本机 Codex 对话 UUID 和实际项目目录，保存绑定。
+4. 点击“打开 Claude 待命”。在 Claude 的“环境”里核对实际项目目录，再发送提示并按正常流程授权 MCP。
+5. 若深链接没有打开正确的 Code 会话，手动打开同一目录，点击软件“复制待命提示”，粘贴并发送。
+6. 只有显示“等待故障 · Claude 桌面已待命”才算接通。关闭窗口只会收起到托盘；“退出并暂停”停止新的接续。
+
+便携版：解压完整 Windows-x64-Portable.zip 到固定目录，双击 CodexClaudeBridge.exe。保留同级 Resources 文件夹，不要只复制 exe。
+
+当前未做 Authenticode 签名；系统可能显示发布者未知/SmartScreen 提示。核对 Release 来源与 SHA256，遵循组织的应用策略。不要关闭全局系统防护。
+
+数据：%LOCALAPPDATA%\CodexClaudeBridge。测试时可用 CODEX_CLAUDE_BRIDGE_DATA 覆盖。
+升级/移动：先暂停并完成或核对已有接续，退出软件；更换安装包后重新保存绑定并重开 Claude 待命。
+卸载：先暂停；按 README 的 manifest 命令还原项目 .mcp.json 中本软件的条目。Windows 设置中的卸载只删除安装文件，并暂停默认绑定，保留配置、审计和项目文件，不会终止 Claude 已经执行的任务。
+不注册开机自启、不修改全局 Codex/Claude 设置。
+
+验证边界：CI 测试 Windows 原生命名管道 fixture、进程锁、托盘启动、内置 Python/MCP、迁移目录运行及安装/卸载。Windows 上真实 Codex → Claude 故障接续仍待现场验证，不等同于 macOS 已完成的受控故障验收。仅支持原生 Windows 本机项目；WSL、远端会话、Windows ARM64 未验收。
+
+完整说明：https://github.com/reshuibuduo/codex-claude-desktop-bridge#readme

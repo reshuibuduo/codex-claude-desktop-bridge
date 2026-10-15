@@ -57,7 +57,7 @@ class MCPTests(unittest.TestCase):
         with patch('desktop_mcp.subprocess.run',side_effect=AssertionError('standalone process forbidden')):
             result=b.await_failure(2)
         self.assertEqual(result['phase'],'HANDOFF_READY')
-        entry=json.loads((b.root/'handoffs'/result['handoff_id']/'launch.json').read_text())
+        entry=json.loads((b.root/'handoffs'/result['handoff_id']/'launch.json').read_text(encoding='utf-8'))
         self.assertFalse(entry['standalone_cli_spawned']);self.assertNotIn('argv',entry)
         self.assertIn('report_completion',result['instruction'])
         self.assertNotIn('测试',result['context']['constraints'][0])
@@ -86,7 +86,7 @@ class MCPTests(unittest.TestCase):
         b=self.bridge([self.view(),self.view('failed')]);result=b.await_failure(2);sid=result['handoff_id']
         done=b.report_completion(sid,'Changed toy','0 tests run; not verified')
         self.assertEqual(done['phase'],'COMPLETED_REPORTED')
-        saved=json.loads((b.root/'handoffs'/sid/'completion.json').read_text())
+        saved=json.loads((b.root/'handoffs'/sid/'completion.json').read_text(encoding='utf-8'))
         self.assertEqual(saved['evidence_kind'],'target_agent_report_not_independent_verification')
         with contextlib.closing(b.core.connect()) as db:self.assertEqual(db.execute('SELECT count(*) FROM leases').fetchone()[0],0)
     def test_completion_wrong_id(self):
@@ -139,24 +139,24 @@ class SetupTests(unittest.TestCase):
     def install(self):return setup.install_mcp(self.project,self.cfg,self.script,self.audit,'thread')
     def test_install_and_restore_preserves_other_connectors(self):
         path=self.project/'.mcp.json';path.write_text(json.dumps({'otherField':True,'mcpServers':{'existing':{'url':'https://example.invalid'}}}))
-        before=path.read_bytes();result=self.install();value=json.loads(path.read_text())
+        before=path.read_bytes();result=self.install();value=json.loads(path.read_text(encoding='utf-8'))
         self.assertIn('existing',value['mcpServers']);self.assertTrue(value['otherField'])
         entry=value['mcpServers']['codex-desktop-bridge'];self.assertIn('--expected-thread',entry['args'])
-        manifest=json.loads(Path(result['manifest']).read_text());self.assertEqual(Path(manifest['backup']).read_bytes(),before)
+        manifest=json.loads(Path(result['manifest']).read_text(encoding='utf-8'));self.assertEqual(Path(manifest['backup']).read_bytes(),before)
         value['mcpServers']['later']={'url':'local'};path.write_text(json.dumps(value))
-        setup.uninstall_mcp(result['manifest']);restored=json.loads(path.read_text())
+        setup.uninstall_mcp(result['manifest']);restored=json.loads(path.read_text(encoding='utf-8'))
         self.assertNotIn('codex-desktop-bridge',restored['mcpServers']);self.assertIn('later',restored['mcpServers'])
     def test_unknown_existing_connector_preserved(self):
         path=self.project/'.mcp.json';text=json.dumps({'mcpServers':{'codex-desktop-bridge':{'command':'other'}}});path.write_text(text)
         with self.assertRaises(ValueError):self.install()
-        self.assertEqual(path.read_text(),text)
+        self.assertEqual(path.read_text(encoding='utf-8'),text)
     def test_changed_connector_not_uninstalled(self):
-        result=self.install();path=self.project/'.mcp.json';value=json.loads(path.read_text());value['mcpServers']['codex-desktop-bridge']['command']='changed';path.write_text(json.dumps(value))
+        result=self.install();path=self.project/'.mcp.json';value=json.loads(path.read_text(encoding='utf-8'));value['mcpServers']['codex-desktop-bridge']['command']='changed';path.write_text(json.dumps(value))
         with self.assertRaises(ValueError):setup.uninstall_mcp(result['manifest'])
     def test_symlink_not_overwritten(self):
         target=self.root/'target';target.write_text('{}');(self.project/'.mcp.json').symlink_to(target)
         with self.assertRaises(ValueError):self.install()
-        self.assertEqual(target.read_text(),'{}')
+        self.assertEqual(target.read_text(encoding='utf-8'),'{}')
     def test_stale_standby_not_shown_ready(self):
         state=self.root/'state';state.mkdir();(state/'desktop-status.json').write_text(json.dumps({'phase':'WAITING_FOR_NEW_FAILURE','time':0}))
         self.cfg.write_text(json.dumps({'enabled':True,'state_dir':str(state),'thread_id':'test','cwd':str(self.project)}))

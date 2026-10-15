@@ -22,7 +22,7 @@ def check():
             issues.append(name+': missing/nonregular file');continue
         if set(Path(name).parts)&BLOCKED_PARTS or name.endswith(('.sqlite','.log','.db')) or Path(name).name=='.mcp.json':
             issues.append(name+': runtime/private artifact');continue
-        try:content=path.read_text()
+        try:content=path.read_text(encoding='utf-8')
         except UnicodeError:issues.append(name+': binary content');continue
         for label,regex in PATTERNS.items():
             if regex.search(content):issues.append(name+': '+label)

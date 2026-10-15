@@ -5,7 +5,7 @@ permissions. This module does not create chats or inject source failures.
 """
 import argparse
 import contextlib
-import fcntl
+from platform_support import lock_exclusive
 import hashlib
 import json
 import os
@@ -182,11 +182,17 @@ def ensure_same_failed_turn(ipc, thread_id, owner, turn_id):
 def terminate_owned(process):
     if process.poll() is not None:
         return
-    os.killpg(process.pid, signal.SIGTERM)
+    if os.name == 'nt':
+        process.terminate()  # Legacy CLI only; desktop MCP never launches this child.
+    else:
+        os.killpg(process.pid, signal.SIGTERM)
     try:
         process.wait(timeout=5)
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
+        if os.name == 'nt':
+            process.kill()
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
         process.wait(timeout=5)
 
 
@@ -214,6 +220,8 @@ class Service:
                 db.execute('DELETE FROM leases WHERE session_id=?', (session,))
 
     def launch(self, ipc, owner, prepared, event):
+        if os.name == 'nt':
+            raise OSError("legacy CLI execution is POSIX-only; use the Windows desktop MCP app")
         session, package = prepared['session_id'], Path(prepared['package'])
         thread_id, turn_id = self.config['thread_id'], event['params']['turn']['id']
         ensure_same_failed_turn(ipc, thread_id, owner, turn_id)
@@ -274,7 +282,7 @@ class Service:
         # One daemon per state directory, including across GUI restarts.
         with (self.folder/'service.lock').open('a') as lock:
             try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                lock_exclusive(lock)
             except BlockingIOError:
                 return self.status('ALREADY_RUNNING')
             if not core.AUTO_HANDOFF_ENABLED or self.config.get('enabled') is not True:
@@ -361,7 +369,7 @@ def main(argv=None):
         print(json.dumps(status))
         return 0 if status['loggedIn'] else 2
     os.umask(0o077)
-    service = Service(json.loads(args.config.read_text()))
+    service = Service(json.loads(args.config.read_text(encoding='utf-8')))
     def stop(signum, frame):
         raise KeyboardInterrupt()
     signal.signal(signal.SIGTERM, stop)

@@ -10,8 +10,9 @@ import desktop_setup
 
 class PublicPackageTests(unittest.TestCase):
     def test_default_admin_path_matches_native_app(self):
-        self.assertEqual(desktop_setup.DEFAULT_CONFIG,Path.home()/'Library/Application Support/CodexClaudeBridge/config.json')
-        swift=(ROOT/'menu/MenuApp.swift').read_text()
+        from platform_support import data_directory
+        self.assertEqual(desktop_setup.DEFAULT_CONFIG,data_directory()/'config.json')
+        swift=(ROOT/'menu/MenuApp.swift').read_text(encoding='utf-8')
         self.assertIn('.applicationSupportDirectory',swift)
         self.assertIn('CODEX_CLAUDE_BRIDGE_DATA',swift)
         self.assertNotIn('acceptance/independent-recheck.json',swift)
@@ -20,12 +21,12 @@ class PublicPackageTests(unittest.TestCase):
             cwd=Path(name).resolve();config=cwd/'config.json'
             config.write_text(json.dumps({'enabled':True,'thread_id':'test','cwd':str(cwd),'state_dir':str(cwd/'state')}))
             result=subprocess.run([sys.executable,str(ROOT/'bridge/desktop_mcp.py'),'--config',str(config),
-                '--expected-cwd',str(cwd),'--expected-thread','test'],cwd=ROOT,input='',capture_output=True,text=True,timeout=5)
+                '--expected-cwd',str(cwd),'--expected-thread','test'],cwd=ROOT,input='',capture_output=True,text=True,encoding='utf-8',timeout=5)
             self.assertNotEqual(result.returncode,0)
             self.assertIn('actual working directory differs',result.stderr)
             self.assertFalse((cwd/'state').exists())
     def test_clean_public_tree(self):
-        result=subprocess.run([sys.executable,str(ROOT/'scripts/check_public_tree.py')],cwd=ROOT,capture_output=True,text=True)
+        result=subprocess.run([sys.executable,str(ROOT/'scripts/check_public_tree.py')],cwd=ROOT,capture_output=True,text=True,encoding='utf-8')
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertIn('PUBLIC_TREE_OK',result.stdout)
 

@@ -32,7 +32,7 @@ def main():
             'cwd':str(project),'state_dir':str(root/'state')}))
         script = Path(__file__).with_name('desktop_mcp.py')
         record = setup.install_mcp(project, config, script, root/'audit', 'bundle-smoke')
-        entry = json.loads((project/'.mcp.json').read_text())['mcpServers'][setup.SERVER_NAME]
+        entry = json.loads((project/'.mcp.json').read_text(encoding='utf-8'))['mcpServers'][setup.SERVER_NAME]
         assert Path(entry['command']).resolve() == python
         request = '\n'.join(json.dumps(value) for value in [
             {'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18'}},
@@ -43,14 +43,14 @@ def main():
         # A deliberately hostile Python environment must not change the selected runtime.
         env=dict(os.environ, PYTHONHOME='/nonexistent-runtime', PYTHONPATH='/nonexistent-modules')
         result=subprocess.run([entry['command']]+entry['args'], cwd=project, input=request,
-                              capture_output=True,text=True,timeout=15,env=env)
+                              capture_output=True,text=True,encoding='utf-8',timeout=15,env=env)
         assert result.returncode == 0, result.stderr
         replies={item['id']:item for item in map(json.loads,result.stdout.splitlines())}
         assert replies[1]['result']['serverInfo']['name']=='codex-desktop-bridge'
         assert 'await_codex_failure' in {t['name'] for t in replies[2]['result']['tools']}
         assert replies[3]['result']=={}
         setup.uninstall_mcp(record['manifest'])
-        assert setup.SERVER_NAME not in json.loads((project/'.mcp.json').read_text())['mcpServers']
+        assert setup.SERVER_NAME not in json.loads((project/'.mcp.json').read_text(encoding='utf-8'))['mcpServers']
     print('BUNDLE_SMOKE_OK python=embedded mcp=stdio install_restore=passed external_runs=0')
 
 

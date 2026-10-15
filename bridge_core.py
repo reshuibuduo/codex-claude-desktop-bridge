@@ -296,8 +296,8 @@ def self_test():
         result = core.prepare(event, snapshot, context, 1000)
         check(result["action"] == "PREPARED", "package created")
         package = Path(result["package"])
-        prompt = (package / "handoff.txt").read_text()
-        launch = json.loads((package / "launch.json").read_text())
+        prompt = (package / "handoff.txt").read_text(encoding='utf-8')
+        launch = json.loads((package / "launch.json").read_text(encoding='utf-8'))
         check(context["goal"] in prompt and "OMIT_" not in prompt, "prompt content")
         check(launch["cwd"] == str(workspace.resolve()), "same workspace")
         check(launch["argv"][:2] == ["claude", "-p"] and "--resume" not in launch["argv"], "new Claude session")
@@ -347,7 +347,7 @@ def main():
         self_test()
         return 0
     if args.prepare and args.state and args.out:
-        body = json.loads(args.prepare.read_text())
+        body = json.loads(args.prepare.read_text(encoding='utf-8'))
         result = HandoffCore(args.state, args.out).prepare(body["event"], body["snapshot"], body["context"])
         print(json.dumps(result, ensure_ascii=False))
         return 0

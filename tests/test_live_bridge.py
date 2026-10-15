@@ -194,6 +194,7 @@ class ServiceTests(unittest.TestCase):
 
 
 
+@unittest.skipIf(__import__('os').name == 'nt', 'legacy POSIX CLI fixture; desktop MCP tests still run')
 class LocalProcessFixtureTests(unittest.TestCase):
     """Real local child processes + synthetic IPC, NOT a model or E2E test."""
     def setUp(self):
@@ -235,7 +236,7 @@ class LocalProcessFixtureTests(unittest.TestCase):
             service = Service(self.config, self.ipc())
             result = service.watch(5)
         self.assertEqual(result['phase'], 'COMPLETED')
-        self.assertEqual((self.root/'local_fixture_received.txt').read_text(),'LOCAL_PROCESS_ONLY')
+        self.assertEqual((self.root/'local_fixture_received.txt').read_text(encoding='utf-8'),'LOCAL_PROCESS_ONLY')
         with contextlib.closing(service.core.connect()) as db:
             self.assertEqual(db.execute('SELECT count(*) FROM handoffs').fetchone()[0],1)
             self.assertEqual(db.execute('SELECT count(*) FROM leases').fetchone()[0],0)

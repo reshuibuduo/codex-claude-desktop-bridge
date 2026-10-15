@@ -79,15 +79,24 @@ def apply_patches(state, patches):
 
 class DesktopIPC:
     def __init__(self, path=None, timeout=8):
-        self.path = Path(path or Path.home() / ".codex/ipc/ipc.sock")
-        info = self.path.lstat()
-        if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid():
-            raise ProtocolError("unexpected socket owner or file type")
-        if info.st_mode & 0o077:
-            raise ProtocolError("desktop socket is not private")
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.settimeout(timeout)
-        self.sock.connect(str(self.path))
+        if os.name == "nt":
+            from windows_pipe import WindowsPipe, DEFAULT_PIPE
+            self.path = str(path or DEFAULT_PIPE)
+            self.sock = WindowsPipe(self.path, timeout)
+        else:
+            self.path = Path(path or Path.home() / ".codex/ipc/ipc.sock")
+            info = self.path.lstat()
+            if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid():
+                raise ProtocolError("unexpected socket owner or file type")
+            if info.st_mode & 0o077:
+                raise ProtocolError("desktop socket is not private")
+            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.sock.settimeout(timeout)
+            try:
+                self.sock.connect(str(self.path))
+            except BaseException:
+                self.sock.close()
+                raise
         self.client_id = "initializing-client"
         self.pending = []
         self.buffer = bytearray()

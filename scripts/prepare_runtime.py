@@ -35,7 +35,7 @@ def prepare(arch, destination):
     archive = cache/entry['url'].rsplit('/', 1)[1]
     if not archive.exists():
         partial = archive.with_suffix('.partial')
-        subprocess.run(['/usr/bin/curl', '--fail', '--location', '--retry', '3',
+        subprocess.run(['curl.exe' if __import__('os').name == 'nt' else '/usr/bin/curl', '--fail', '--location', '--retry', '3',
                         '--silent', '--show-error', entry['url'], '-o', str(partial)], check=True)
         partial.replace(archive)
     if hashlib.sha256(archive.read_bytes()).hexdigest() != entry['sha256']:
@@ -57,7 +57,7 @@ def prepare(arch, destination):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--arch', choices=['arm64', 'x86_64'], required=True)
+    parser.add_argument('--arch', choices=['arm64', 'x86_64', 'windows-x64'], required=True)
     parser.add_argument('--destination', type=Path, required=True)
     args = parser.parse_args()
     prepare(args.arch, args.destination)

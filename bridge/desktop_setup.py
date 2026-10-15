@@ -17,7 +17,7 @@ from live_service import atomic_json, validate_config
 SERVER_NAME='codex-desktop-bridge'
 PROMPT='''这是 Codex → Claude 桌面自动接续待命会话。请调用 codex-desktop-bridge 的 await_codex_failure(timeout_seconds=900)。只有返回 HANDOFF_READY 才接续 context.goal；先核对磁盘现状和项目指引，保留现有修改，避免重复外部操作。完成后调用 report_completion(handoff_id, summary, tests_result)，如实记录实际测试，然后继续等候下一次故障。WAIT_TIMEOUT 只继续等待；DISABLED、PAUSED、ERROR、REVIEW_PREVIOUS_HANDOFF 或 COMPLETION_CONFLICT 停止并报告。不要将计划当作完成。使用中文。'''
 
-def read(path): return json.loads(Path(path).read_text())
+def read(path): return json.loads(Path(path).read_text(encoding='utf-8'))
 def write_config(path,value):
     validate_config(value)
     atomic_json(path,value)
@@ -25,7 +25,7 @@ def write_config(path,value):
 def unresolved(config):
     db=Path(config['state_dir'])/'state.sqlite'
     if not db.exists():return False
-    with contextlib.closing(sqlite3.connect('file:'+str(db)+'?mode=ro',uri=True)) as c:
+    with contextlib.closing(sqlite3.connect(db.resolve().as_uri()+'?mode=ro',uri=True)) as c:
         return bool(c.execute("SELECT 1 FROM handoffs WHERE state NOT IN ('completed','abandoned') LIMIT 1").fetchone())
 
 def resolve(config_path, handoff_id, outcome, note):
@@ -112,7 +112,8 @@ def status(config_path):
     else:current['display_phase']=current['phase']
     return current
 
-DEFAULT_CONFIG=Path.home()/'Library/Application Support/CodexClaudeBridge/config.json'
+from platform_support import data_directory
+DEFAULT_CONFIG=data_directory()/'config.json'
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--config',type=Path,default=DEFAULT_CONFIG)
@@ -135,4 +136,8 @@ def main():
     else:result=uninstall_mcp(a.manifest)
     print(json.dumps(result,ensure_ascii=False))
 
-if __name__=='__main__':main()
+if __name__=='__main__':
+    if os.name == 'nt':
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    main()
