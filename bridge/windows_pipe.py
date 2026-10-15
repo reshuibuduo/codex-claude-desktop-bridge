@@ -132,7 +132,7 @@ class WindowsPipe:
             if fn(self.handle, buffer, size, C.byref(count), C.byref(overlapped)):
                 return count.value
             error = C.get_last_error()
-            if error in (109, 232) and not writing:  # broken/disconnected pipe
+            if error in (109, 232, 233) and not writing:  # broken/disconnected pipe
                 return 0
             if error != 997:  # ERROR_IO_PENDING
                 raise C.WinError(error)
@@ -148,7 +148,7 @@ class WindowsPipe:
                 raise OSError('desktop pipe event wait failed')
             if not self.k.GetOverlappedResult(self.handle, C.byref(overlapped), C.byref(count), False):
                 error = C.get_last_error()
-                if error in (109, 232) and not writing:
+                if error in (109, 232, 233) and not writing:
                     return 0
                 raise C.WinError(error)
             return count.value
